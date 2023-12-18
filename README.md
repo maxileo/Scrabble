@@ -1,0 +1,2 @@
+# Scrabble
+Python Scrabble game
