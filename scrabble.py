@@ -28,10 +28,16 @@ class Media:
 class Letter:
     @staticmethod
     def draw_letter(surface, rect, letter, letterTextColor, isLetterNow, isLetterSelected):
-        
+
         fill_color = (247, 243, 237)
         if isLetterNow:
             fill_color = (247, 234, 183)
+        og_letter = letter
+        if '_' in letter:
+            if len(letter) != 1:
+                fill_color = (232, 209, 104)
+                letter = letter.replace('_', '')
+        
         outline_color = (28, 27, 26)
         shadow_color = (46, 46, 45)
         selected_color = (235, 197, 108)
@@ -50,7 +56,7 @@ class Letter:
         text_rect = text_surface.get_rect(center=rect.center)
         surface.blit(text_surface, text_rect)
 
-        letter_value = str(Letter.get_letter_value(letter))
+        letter_value = str(Letter.get_letter_value(og_letter))
         font_value = pygame.font.Font(None, LETTER_VALUE_FONT_SIZE)
         text_surface = font_value.render(letter_value, True, letterTextColor)
         text_rect = text_surface.get_rect(center=rect.center).move(rect.width * 1.5/5, rect.height * 1.5/5)
@@ -59,8 +65,10 @@ class Letter:
     @staticmethod
     def get_letter_value(letter):
         letter_values = {
-            'A': 1, 'B': 5, 'C': 1, 'D': 3, 'E': 1, 'F': 4, 'G': 6, 'H': 8, 'I': 1, 'J': 10, 'L': 1, 'M': 4, 'N': 1, 'O': 2, 'P': 2, 'R': 1, 'S': 1, 'T': 1, 'U': 1, 'V': 4, 'X': 10, 'Z': 10
+            '_': 2, 'A': 1, 'B': 5, 'C': 1, 'D': 3, 'E': 1, 'F': 4, 'G': 6, 'H': 8, 'I': 1, 'J': 10, 'L': 1, 'M': 4, 'N': 1, 'O': 2, 'P': 2, 'R': 1, 'S': 1, 'T': 1, 'U': 1, 'V': 4, 'X': 10, 'Z': 10
         }
+        if '_' in letter:
+            return 2
         return letter_values[letter]
 
 class Board:
@@ -167,6 +175,7 @@ class Board:
         for i in range(self.rows):
             for j in range(self.cols):
                 if self.board[i][j][0] != '':
+                    
                     if (j-1 >= 0 and self.board[i][j-1][0] == '') or j == 0:
                         k = j
                         while k < self.cols and self.board[i][k][0] != '':
@@ -175,7 +184,11 @@ class Board:
                             word = ""
                             moves = []
                             for k_aux in range(j, k):
-                                word = word + self.board[i][k_aux][0]
+                                if '_' in self.board[i][k_aux][0]:
+                                    letter = self.board[i][k_aux][0].replace('_', '')
+                                else:
+                                    letter = self.board[i][k_aux][0]
+                                word = word + letter
                                 moves.append((k_aux, i))
                             words.append((word, moves))
                     if (i-1 >= 0 and self.board[i-1][j][0] == '') or i == 0:
@@ -186,7 +199,11 @@ class Board:
                             word = ""
                             moves = []
                             for k_aux in range(i, k):
-                                word = word + self.board[k_aux][j][0]
+                                if '_' in self.board[k_aux][j][0]:
+                                    letter = self.board[k_aux][j][0].replace('_', '')
+                                else:
+                                    letter = self.board[k_aux][j][0]
+                                word = word + letter
                                 moves.append((j, k_aux))
                             words.append((word, moves))
         return words
@@ -225,6 +242,12 @@ class Board:
 
     
     def is_board_ok(self, turnPositions):
+        for i in range(self.rows):
+            for j in range(self.cols):
+                if self.board[i][j][0] != '' and '_' in self.board[i][j][0] and len(self.board[i][j][0]) == 1:
+                    global infoBoardManager
+                    infoBoardManager.add_new_text("Joker-ul nu e decis :(", "WRONG")
+                    return False
         words = self.get_words()
 
         for (word, moves) in words:
@@ -357,6 +380,52 @@ class Button:
             return True
         return False
     
+class PickLetter:
+    def __init__(self, rect):
+        self.rect = rect
+        self.fill_color = (46, 46, 54)
+        self.outline_color = (10, 10, 10)
+        self.pick_fill_color = (187, 187, 189)
+        self.pick_hover_color = (232, 232, 235)
+
+        self.cols = 8
+        self.rows = 3
+        self.startX = rect.x
+        self.startY = rect.y
+        self.width = rect.width
+        self.height = rect.height
+        self.pick_size = rect.width // self.cols
+        self.picks = [
+            ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],
+            ['I', 'J', 'L', 'M', 'N', 'O', 'P', 'R'],
+            [' ', 'S', 'T', 'U', 'V', 'X', 'Z', ' '],
+        ]
+
+    def draw(self, surface):
+        if self.visible:
+            #pygame.draw.rect(surface, self.fill_color, self.rect)
+            #pygame.draw.rect(surface, self.outline_color, self.rect, 2)
+
+            for row in range(self.rows):
+                for col in range(self.cols):
+                    letter = self.picks[row][col]
+                    if letter != ' ':
+                        pick_rect = pygame.Rect(self.startX + col * self.pick_size, self.startY + row * self.pick_size, self.pick_size, self.pick_size)
+                        
+                        mouse_x, mouse_y = pygame.mouse.get_pos()
+                        fill_color = self.pick_fill_color
+                        if pick_rect.collidepoint((mouse_x, mouse_y)):
+                            fill_color = self.pick_hover_color
+                        
+                        pygame.draw.rect(surface, fill_color, pick_rect)
+                        pygame.draw.rect(surface, self.outline_color, pick_rect, 2)
+
+                        font = pygame.font.Font(None, LETTER_FONT_SIZE)
+                        text_surface = font.render(letter, True, (20, 20, 20))
+                        text_rect = text_surface.get_rect(center=pick_rect.center)
+                        surface.blit(text_surface, text_rect)
+
+    
 class InfoText:
     def __init__(self, text, type, fill_color, outline_color, text_color, rect):
         self.text = text
@@ -447,7 +516,7 @@ class Game:
         self.smallestNrRemoved = 100
         self.finalMoves = [[0, 0, 0]]*10
         self.lettersRules = {
-          'A': 10, 'B': 2, 'C': 5, 'D': 4, 'E': 9, 'F': 2, 'G': 2, 'H': 1, 'I': 11, 'J': 1, 'L': 5, 'M': 3, 'N': 6, 'O': 5, 'P': 4, 'R': 6, 'S': 6, 'T': 7, 'U': 5, 'V': 2, 'X': 1, 'Z': 1
+          '_': 2, 'A': 10, 'B': 2, 'C': 5, 'D': 4, 'E': 9, 'F': 2, 'G': 2, 'H': 1, 'I': 11, 'J': 1, 'L': 5, 'M': 3, 'N': 6, 'O': 5, 'P': 4, 'R': 6, 'S': 6, 'T': 7, 'U': 5, 'V': 2, 'X': 1, 'Z': 1
         }
         # self.lettersRules = {
         #    'A': 5, 'B': 1, 'C': 1, 'D': 1, 'E': 5, 'F': 1, 'G': 1, 'H': 1, 'I': 5, 'J': 1, 'L': 1, 'M': 1, 'N': 1, 'O': 5, 'P': 1, 'R': 2, 'S': 2, 'T': 2, 'U': 5, 'V': 2, 'X': 0, 'Z': 0
@@ -637,6 +706,9 @@ class Game:
 
         infoBoardManager.add_new_text(f"Randul lui Player {self.turn + 1} !", "TURN")
 
+        global pickLetterManager
+        pickLetterManager.visible = False
+
         self.reloadTurnButtons()
         
     def reloadTurnButtons(self):
@@ -712,7 +784,22 @@ class Game:
         except Exception as e:
             infoBoardManager = InfoBoard(rect_infoBoard, gameManager.board.cell_size)
             pass
+    
+        self.resizePickManager()
+        
 
+    def resizePickManager(self):
+        global pickLetterManager
+        rect_pickLetter = pygame.Rect(self.players[self.turn].startX + self.players[self.turn].letter_size, 
+                                      self.players[self.turn].startY + self.players[self.turn].holder_height,
+                                      8 * self.players[self.turn].letter_size,
+                                      3 * self.players[self.turn].letter_size)
+        try:
+            visible = pickLetterManager.visible
+        except Exception as e:
+            visible = False
+        pickLetterManager = PickLetter(rect_pickLetter)
+        pickLetterManager.visible = visible
     
 
 
@@ -733,6 +820,7 @@ gameManager = Game(board, nr_players=2)
 mediaManager = Media(gameManager.board.cell_size)
 
 infoBoardManager = None
+pickLetterManager = None
 endTurn_button = None
 restart_button = None
 discard_button = None
@@ -741,6 +829,7 @@ gameManager.handleResize(WIDTH, HEIGHT)
 
 chosenLetter = ''
 gameManager.players[gameManager.turn].isTurnNow = True
+pickLetterManager.visible = False
 
 gameManager.stopGame = True
 
@@ -776,7 +865,6 @@ while gameManager.running:
                         chosenLetter = board.board[clicked_col][clicked_row][0]
                         board.board[clicked_col][clicked_row][0] = ''
                         gameManager.turnPositions.remove((clicked_row, clicked_col))
-                        
 
             letter_index = gameManager.players[gameManager.turn].check_click_holder(mouseX, mouseY)
             if event.button == 1 and letter_index != -1:
@@ -784,10 +872,14 @@ while gameManager.running:
                 gameManager.players[gameManager.turn].letters.pop(letter_index)
                 gameManager.players[gameManager.turn].selectedLetters.pop(letter_index)
             elif event.button == 3 and letter_index != -1:
-                print("SELECTED " + gameManager.players[gameManager.turn].letters[letter_index])
+                if '_' in gameManager.players[gameManager.turn].letters[letter_index]:
+                    pickLetterManager.visible = not pickLetterManager.visible
+                    gameManager.resizePickManager()
+                    pickLetterManager.letterIndex = letter_index
+                #print("SELECTED " + gameManager.players[gameManager.turn].letters[letter_index])
                 gameManager.players[gameManager.turn].selectedLetters[letter_index] = not gameManager.players[gameManager.turn].selectedLetters[letter_index]
 
-            if discard_button.clicked(mouseX, mouseY):
+            if discard_button.clicked(mouseX, mouseY) and pickLetterManager.visible == False:
                 # PASS DISCARD
                 selectedIndexes = []
                 for index in range(len(gameManager.players[gameManager.turn].selectedLetters)):
@@ -830,7 +922,7 @@ while gameManager.running:
                     else:
                         infoBoardManager.add_new_text("DISCARD UNA sau TOATE literele", "WRONG")
 
-            if endTurn_button.clicked(mouseX, mouseY):
+            if endTurn_button.clicked(mouseX, mouseY) and pickLetterManager.visible == False:
                 print("END")
                 (result, points) = gameManager.endTurn()
                 if result == True:
@@ -861,6 +953,17 @@ while gameManager.running:
                     # CHANGE TURN
                     gameManager.nextTurn()
 
+            # alege pentru joker
+            if pickLetterManager.visible:
+                clicked_pick_row = (mouseY - pickLetterManager.startY) // pickLetterManager.pick_size
+                clicked_pick_col = (mouseX - pickLetterManager.startX) // pickLetterManager.pick_size
+
+                if clicked_pick_row >= 0 and clicked_pick_row < pickLetterManager.rows and clicked_pick_col >= 0 and clicked_pick_col < pickLetterManager.cols:
+                    if pickLetterManager.picks[clicked_pick_row][clicked_pick_col] != ' ':
+                        print("AM ALES " + pickLetterManager.picks[clicked_pick_row][clicked_pick_col])
+                        gameManager.players[gameManager.turn].letters[pickLetterManager.letterIndex] = '_' + pickLetterManager.picks[clicked_pick_row][clicked_pick_col]
+                        pickLetterManager.visible = False
+
 
     screen.fill(BACKGROUND_COLOR)
     board.draw_board(screen, gameManager.turnPositions, len(gameManager.allLetters), chosenLetter)
@@ -873,16 +976,19 @@ while gameManager.running:
             sorted_players[index].draw_holder(screen)
             sorted_players[index].draw_score(screen, index)
         
-        endTurn_button.draw(screen)
-        selectedIndexes = []
-        for index in range(len(gameManager.players[gameManager.turn].selectedLetters)):
-            if gameManager.players[gameManager.turn].selectedLetters[index] == True:
-                selectedIndexes.append(index)
-        if len(selectedIndexes) == 0:
-            discard_button.text = "Pass"
-        else:
-            discard_button.text = "Discard"
-        discard_button.draw(screen)
+        if pickLetterManager.visible == False:
+            endTurn_button.draw(screen)
+            selectedIndexes = []
+            for index in range(len(gameManager.players[gameManager.turn].selectedLetters)):
+                if gameManager.players[gameManager.turn].selectedLetters[index] == True:
+                    selectedIndexes.append(index)
+            if len(selectedIndexes) == 0:
+                discard_button.text = "Pass"
+            else:
+                discard_button.text = "Discard"
+            discard_button.draw(screen)
+        
+        pickLetterManager.draw(screen)
 
         if chosenLetter != '':
             mouse_x, mouse_y = pygame.mouse.get_pos()
