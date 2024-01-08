@@ -3,6 +3,7 @@ import sys
 import copy
 import random
 import json
+import os
 
 pygame.init()
 
@@ -504,7 +505,7 @@ class InfoBoard:
 
     
 class Game:
-    def __init__(self, board, nr_players):
+    def __init__(self, board, nr_players, json_file):
         self.board = board
         self.nr_players = nr_players
         self.turnPositions = []
@@ -533,7 +534,7 @@ class Game:
             player = Player(self.generatePlayerLetters(7), index, WIDTH, HEIGHT, BOARD_SIZE, board.letter_size)
             self.players.append(player)
         
-        with open("words.json", 'r') as file:
+        with open(json_file, 'r') as file:
             self.scrabble_words = json.load(file)
 
     def isCorrectWord(self, word):
@@ -802,226 +803,239 @@ class Game:
         pickLetterManager.visible = visible
     
 
+if __name__ == "__main__":
 
-WHITE = (255, 255, 255)
-BACKGROUND_COLOR = (29, 30, 33)
-
-screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
-pygame.display.set_caption("Scrabble")
-
-cursor_image = pygame.image.load("MEDIA/mouse.png")
-cursor_image = pygame.transform.scale(cursor_image, (32, 32))
-#pygame.mouse.set_visible(False)
-cursor_img_rect = cursor_image.get_rect()
-
-board = Board(BOARD_SIZE, 15, 15, WIDTH, HEIGHT)
-gameManager = Game(board, nr_players=2)
-
-mediaManager = Media(gameManager.board.cell_size)
-
-infoBoardManager = None
-pickLetterManager = None
-endTurn_button = None
-restart_button = None
-discard_button = None
-
-gameManager.handleResize(WIDTH, HEIGHT)
-
-chosenLetter = ''
-gameManager.players[gameManager.turn].isTurnNow = True
-pickLetterManager.visible = False
-
-gameManager.stopGame = True
-
-while gameManager.running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            gameManager.running = False
-            sys.exit()
-
-        if event.type == pygame.VIDEORESIZE:
-            newWidth, newHeight = event.size
-            gameManager.handleResize(newWidth, newHeight)
-
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            mouseX, mouseY = event.pos
-            clicked_row = (mouseY - board.startY) // board.cell_size
-            clicked_col = (mouseX - board.startX) // board.cell_size
-
-            # event de a pune
-            if chosenLetter != '':
-                if clicked_row >= 0 and clicked_row < board.rows and clicked_col >= 0 and clicked_col < board.cols:
-                    if board.board[clicked_col][clicked_row][0] == '':
-                        board.board[clicked_col][clicked_row][0] = chosenLetter
-                        chosenLetter = ''
-                        gameManager.turnPositions.append((clicked_row, clicked_col))
-                else:
-                    gameManager.players[gameManager.turn].letters.append(chosenLetter)
-                    gameManager.players[gameManager.turn].selectedLetters.append(False)
-                    chosenLetter = ''
-            else:
-                if clicked_row >= 0 and clicked_row < board.rows and clicked_col >= 0 and clicked_col < board.cols:
-                    if (clicked_row, clicked_col) in gameManager.turnPositions:
-                        chosenLetter = board.board[clicked_col][clicked_row][0]
-                        board.board[clicked_col][clicked_row][0] = ''
-                        gameManager.turnPositions.remove((clicked_row, clicked_col))
-
-            letter_index = gameManager.players[gameManager.turn].check_click_holder(mouseX, mouseY)
-            if event.button == 1 and letter_index != -1:
-                chosenLetter = gameManager.players[gameManager.turn].letters[letter_index]
-                gameManager.players[gameManager.turn].letters.pop(letter_index)
-                gameManager.players[gameManager.turn].selectedLetters.pop(letter_index)
-            elif event.button == 3 and letter_index != -1:
-                if '_' in gameManager.players[gameManager.turn].letters[letter_index]:
-                    pickLetterManager.visible = not pickLetterManager.visible
-                    gameManager.resizePickManager()
-                    pickLetterManager.letterIndex = letter_index
-                #print("SELECTED " + gameManager.players[gameManager.turn].letters[letter_index])
-                gameManager.players[gameManager.turn].selectedLetters[letter_index] = not gameManager.players[gameManager.turn].selectedLetters[letter_index]
-
-            if discard_button.clicked(mouseX, mouseY) and pickLetterManager.visible == False:
-                # PASS DISCARD
-                selectedIndexes = []
-                for index in range(len(gameManager.players[gameManager.turn].selectedLetters)):
-                    if gameManager.players[gameManager.turn].selectedLetters[index] == True:
-                        selectedIndexes.append(index)
-                if len(selectedIndexes) == 0:
-                    # PASS
-                    infoBoardManager.add_new_text(f"Player {gameManager.turn+1} a zis PASS", "TURN")
-                    gameManager.nextTurn()
-                    gameManager.consecutivePasses = gameManager.consecutivePasses + 1
-                    if gameManager.consecutivePasses / gameManager.nr_players >= 2:
-                        infoBoardManager.add_new_text("PASS de 2 ori consecutiv", "BONUS")
-                        infoBoardManager.add_new_text("ENDING GAME", "BONUS")
-                        gameManager.stopGame = True
-                else:
-                    # DISCARD
-                    if len(selectedIndexes) == 1 or len(selectedIndexes) == len(gameManager.players[gameManager.turn].letters):
-                        discardedLettersStr = ""
-                        discardedLetters = []
-                        for index in selectedIndexes:
-                            discardedLettersStr = discardedLettersStr + f" {gameManager.players[gameManager.turn].letters[index]}"
-                            discardedLetters.append(gameManager.players[gameManager.turn].letters[index])
-                            gameManager.players[gameManager.turn].letters.pop(index)
-                            gameManager.players[gameManager.turn].selectedLetters.pop(index)
-                            for i in range(len(selectedIndexes)):
-                                if selectedIndexes[i] > index:
-                                    selectedIndexes[i] = selectedIndexes[i] - 1
-                        
-                        newLetters = gameManager.generatePlayerLetters(len(selectedIndexes))
-                        for newLetter in newLetters:
-                            gameManager.players[gameManager.turn].letters.append(newLetter)
-                            gameManager.players[gameManager.turn].selectedLetters.append(False)
-                        infoBoardManager.add_new_text(f"DISCARD {discardedLettersStr}", "BONUS")
-                        infoBoardManager.add_new_text("ENDING TURN", "BONUS")
-
-                        for discardedLetter in discardedLetters:
-                            gameManager.allLetters.append(discardedLetter)
-
-                        gameManager.nextTurn()
-                    else:
-                        infoBoardManager.add_new_text("DISCARD UNA sau TOATE literele", "WRONG")
-
-            if endTurn_button.clicked(mouseX, mouseY) and pickLetterManager.visible == False:
-                print("END")
-                (result, points) = gameManager.endTurn()
-                if result == True:
-                    gameManager.players[gameManager.turn].isTurnNow = False
-                    if len(gameManager.players[gameManager.turn].letters) == 0:
-                        points = points + 50
-                        infoBoardManager.add_new_text("BONUS +50", "BONUS")
-                    gameManager.players[gameManager.turn].score += points
-                    newLetters = gameManager.generatePlayerLetters(7 - len(gameManager.players[gameManager.turn].letters))
-                    if len(newLetters) != 7 - len(gameManager.players[gameManager.turn].letters):
-                        gameManager.entered_final_game = True
-
-                    # END GAME
-                    if gameManager.entered_final_game and len(newLetters) == 0 and len(gameManager.players[gameManager.turn].letters) == 0:
-                        additionalPoints = 0
-                        gameManager.stopGame = True
-                        for player in gameManager.players:
-                            if player.turn != gameManager.turn:
-                                for letter in player.letters:
-                                    letter_value = Letter.get_letter_value(letter)
-                                    additionalPoints = additionalPoints + letter_value
-                        gameManager.players[gameManager.turn].score += additionalPoints
-
-                    for newLetter in newLetters:
-                        gameManager.players[gameManager.turn].letters.append(newLetter)
-                        gameManager.players[gameManager.turn].selectedLetters.append(False)
-
-                    # CHANGE TURN
-                    gameManager.nextTurn()
-
-            # alege pentru joker
-            if pickLetterManager.visible:
-                clicked_pick_row = (mouseY - pickLetterManager.startY) // pickLetterManager.pick_size
-                clicked_pick_col = (mouseX - pickLetterManager.startX) // pickLetterManager.pick_size
-
-                if clicked_pick_row >= 0 and clicked_pick_row < pickLetterManager.rows and clicked_pick_col >= 0 and clicked_pick_col < pickLetterManager.cols:
-                    if pickLetterManager.picks[clicked_pick_row][clicked_pick_col] != ' ':
-                        print("AM ALES " + pickLetterManager.picks[clicked_pick_row][clicked_pick_col])
-                        gameManager.players[gameManager.turn].letters[pickLetterManager.letterIndex] = '_' + pickLetterManager.picks[clicked_pick_row][clicked_pick_col]
-                        pickLetterManager.visible = False
-
-
-    screen.fill(BACKGROUND_COLOR)
-    board.draw_board(screen, gameManager.turnPositions, len(gameManager.allLetters), chosenLetter)
-
-    infoBoardManager.draw(screen)
-
-    if gameManager.stopGame == False:
-        sorted_players = sorted(gameManager.players, key=lambda player: player.score, reverse=True)
-        for index in range(len(sorted_players)):
-            sorted_players[index].draw_holder(screen)
-            sorted_players[index].draw_score(screen, index)
-        
-        if pickLetterManager.visible == False:
-            endTurn_button.draw(screen)
-            selectedIndexes = []
-            for index in range(len(gameManager.players[gameManager.turn].selectedLetters)):
-                if gameManager.players[gameManager.turn].selectedLetters[index] == True:
-                    selectedIndexes.append(index)
-            if len(selectedIndexes) == 0:
-                discard_button.text = "Pass"
-            else:
-                discard_button.text = "Discard"
-            discard_button.draw(screen)
-        
-        pickLetterManager.draw(screen)
-
-        if chosenLetter != '':
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            rect = pygame.Rect(mouse_x, mouse_y, board.letter_size, board.letter_size)
-            Letter.draw_letter(screen, rect.move(-24, -16), chosenLetter, (20, 20, 20), False, False)
+    json_file = ""
+    if len(sys.argv) < 2:
+        print('USAGE: python scrabble.py <json_words_file>\n    The json file should look like this:\n  ["DA", "MARE", ...]')
+        sys.exit()
     else:
-        sorted_players = sorted(gameManager.players, key=lambda player: player.score, reverse=True)
-        for index in range(len(sorted_players)):
-            sorted_players[index].draw_score_end_game(screen, index)
+        json_file = sys.argv[1]
+        print(json_file)
+        if not os.path.exists(json_file):
+            print("Given path doesn't exist :(")
+            sys.exit()
+    
 
-        restart_button.draw(screen)
+    WHITE = (255, 255, 255)
+    BACKGROUND_COLOR = (29, 30, 33)
 
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
+    pygame.display.set_caption("Scrabble")
+
+    cursor_image = pygame.image.load("MEDIA/mouse.png")
+    cursor_image = pygame.transform.scale(cursor_image, (32, 32))
+    #pygame.mouse.set_visible(False)
+    cursor_img_rect = cursor_image.get_rect()
+
+    board = Board(BOARD_SIZE, 15, 15, WIDTH, HEIGHT)
+    gameManager = Game(board, 2, json_file)
+
+    mediaManager = Media(gameManager.board.cell_size)
+
+    infoBoardManager = None
+    pickLetterManager = None
+    endTurn_button = None
+    restart_button = None
+    discard_button = None
+
+    gameManager.handleResize(WIDTH, HEIGHT)
+
+    chosenLetter = ''
+    gameManager.players[gameManager.turn].isTurnNow = True
+    pickLetterManager.visible = False
+
+    gameManager.stopGame = True
+
+    while gameManager.running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 gameManager.running = False
                 sys.exit()
-            
+
             if event.type == pygame.VIDEORESIZE:
                 newWidth, newHeight = event.size
                 gameManager.handleResize(newWidth, newHeight)
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouseX, mouseY = event.pos
-                if restart_button.clicked(mouseX, mouseY):
-                    board = Board(BOARD_SIZE, 15, 15, WIDTH, HEIGHT)
-                    gameManager = Game(board, nr_players=2)
-                    gameManager.players[gameManager.turn].isTurnNow = True
-                    gameManager.stopGame = False
-                    infoBoardManager.texts = []
+                clicked_row = (mouseY - board.startY) // board.cell_size
+                clicked_col = (mouseX - board.startX) // board.cell_size
 
-    #cursor_img_rect.center = pygame.mouse.get_pos()
-    #screen.blit(cursor_image, cursor_img_rect.move(16, 16))
+                # event de a pune
+                if chosenLetter != '':
+                    if clicked_row >= 0 and clicked_row < board.rows and clicked_col >= 0 and clicked_col < board.cols:
+                        if board.board[clicked_col][clicked_row][0] == '':
+                            board.board[clicked_col][clicked_row][0] = chosenLetter
+                            chosenLetter = ''
+                            gameManager.turnPositions.append((clicked_row, clicked_col))
+                    else:
+                        gameManager.players[gameManager.turn].letters.append(chosenLetter)
+                        gameManager.players[gameManager.turn].selectedLetters.append(False)
+                        chosenLetter = ''
+                else:
+                    if clicked_row >= 0 and clicked_row < board.rows and clicked_col >= 0 and clicked_col < board.cols:
+                        if (clicked_row, clicked_col) in gameManager.turnPositions:
+                            chosenLetter = board.board[clicked_col][clicked_row][0]
+                            board.board[clicked_col][clicked_row][0] = ''
+                            gameManager.turnPositions.remove((clicked_row, clicked_col))
 
-    pygame.display.flip()
+                letter_index = gameManager.players[gameManager.turn].check_click_holder(mouseX, mouseY)
+                if event.button == 1 and letter_index != -1:
+                    chosenLetter = gameManager.players[gameManager.turn].letters[letter_index]
+                    gameManager.players[gameManager.turn].letters.pop(letter_index)
+                    gameManager.players[gameManager.turn].selectedLetters.pop(letter_index)
+                elif event.button == 3 and letter_index != -1:
+                    if '_' in gameManager.players[gameManager.turn].letters[letter_index]:
+                        pickLetterManager.visible = not pickLetterManager.visible
+                        gameManager.resizePickManager()
+                        pickLetterManager.letterIndex = letter_index
+                    #print("SELECTED " + gameManager.players[gameManager.turn].letters[letter_index])
+                    gameManager.players[gameManager.turn].selectedLetters[letter_index] = not gameManager.players[gameManager.turn].selectedLetters[letter_index]
 
-pygame.quit()
+                if discard_button.clicked(mouseX, mouseY) and pickLetterManager.visible == False:
+                    # PASS DISCARD
+                    selectedIndexes = []
+                    for index in range(len(gameManager.players[gameManager.turn].selectedLetters)):
+                        if gameManager.players[gameManager.turn].selectedLetters[index] == True:
+                            selectedIndexes.append(index)
+                    if len(selectedIndexes) == 0:
+                        # PASS
+                        infoBoardManager.add_new_text(f"Player {gameManager.turn+1} a zis PASS", "TURN")
+                        gameManager.nextTurn()
+                        gameManager.consecutivePasses = gameManager.consecutivePasses + 1
+                        if gameManager.consecutivePasses / gameManager.nr_players >= 2:
+                            infoBoardManager.add_new_text("PASS de 2 ori consecutiv", "BONUS")
+                            infoBoardManager.add_new_text("ENDING GAME", "BONUS")
+                            gameManager.stopGame = True
+                    else:
+                        # DISCARD
+                        if len(selectedIndexes) == 1 or len(selectedIndexes) == len(gameManager.players[gameManager.turn].letters):
+                            discardedLettersStr = ""
+                            discardedLetters = []
+                            for index in selectedIndexes:
+                                discardedLettersStr = discardedLettersStr + f" {gameManager.players[gameManager.turn].letters[index]}"
+                                discardedLetters.append(gameManager.players[gameManager.turn].letters[index])
+                                gameManager.players[gameManager.turn].letters.pop(index)
+                                gameManager.players[gameManager.turn].selectedLetters.pop(index)
+                                for i in range(len(selectedIndexes)):
+                                    if selectedIndexes[i] > index:
+                                        selectedIndexes[i] = selectedIndexes[i] - 1
+                            
+                            newLetters = gameManager.generatePlayerLetters(len(selectedIndexes))
+                            for newLetter in newLetters:
+                                gameManager.players[gameManager.turn].letters.append(newLetter)
+                                gameManager.players[gameManager.turn].selectedLetters.append(False)
+                            infoBoardManager.add_new_text(f"DISCARD {discardedLettersStr}", "BONUS")
+                            infoBoardManager.add_new_text("ENDING TURN", "BONUS")
+
+                            for discardedLetter in discardedLetters:
+                                gameManager.allLetters.append(discardedLetter)
+
+                            gameManager.nextTurn()
+                        else:
+                            infoBoardManager.add_new_text("DISCARD UNA sau TOATE literele", "WRONG")
+
+                if endTurn_button.clicked(mouseX, mouseY) and pickLetterManager.visible == False:
+                    print("END")
+                    (result, points) = gameManager.endTurn()
+                    if result == True:
+                        gameManager.players[gameManager.turn].isTurnNow = False
+                        if len(gameManager.players[gameManager.turn].letters) == 0:
+                            points = points + 50
+                            infoBoardManager.add_new_text("BONUS +50", "BONUS")
+                        gameManager.players[gameManager.turn].score += points
+                        newLetters = gameManager.generatePlayerLetters(7 - len(gameManager.players[gameManager.turn].letters))
+                        if len(newLetters) != 7 - len(gameManager.players[gameManager.turn].letters):
+                            gameManager.entered_final_game = True
+
+                        # END GAME
+                        if gameManager.entered_final_game and len(newLetters) == 0 and len(gameManager.players[gameManager.turn].letters) == 0:
+                            additionalPoints = 0
+                            gameManager.stopGame = True
+                            for player in gameManager.players:
+                                if player.turn != gameManager.turn:
+                                    for letter in player.letters:
+                                        letter_value = Letter.get_letter_value(letter)
+                                        additionalPoints = additionalPoints + letter_value
+                            gameManager.players[gameManager.turn].score += additionalPoints
+
+                        for newLetter in newLetters:
+                            gameManager.players[gameManager.turn].letters.append(newLetter)
+                            gameManager.players[gameManager.turn].selectedLetters.append(False)
+
+                        # CHANGE TURN
+                        gameManager.nextTurn()
+
+                # alege pentru joker
+                if pickLetterManager.visible:
+                    clicked_pick_row = (mouseY - pickLetterManager.startY) // pickLetterManager.pick_size
+                    clicked_pick_col = (mouseX - pickLetterManager.startX) // pickLetterManager.pick_size
+
+                    if clicked_pick_row >= 0 and clicked_pick_row < pickLetterManager.rows and clicked_pick_col >= 0 and clicked_pick_col < pickLetterManager.cols:
+                        if pickLetterManager.picks[clicked_pick_row][clicked_pick_col] != ' ':
+                            print("AM ALES " + pickLetterManager.picks[clicked_pick_row][clicked_pick_col])
+                            gameManager.players[gameManager.turn].letters[pickLetterManager.letterIndex] = '_' + pickLetterManager.picks[clicked_pick_row][clicked_pick_col]
+                            pickLetterManager.visible = False
+
+
+        screen.fill(BACKGROUND_COLOR)
+        board.draw_board(screen, gameManager.turnPositions, len(gameManager.allLetters), chosenLetter)
+
+        infoBoardManager.draw(screen)
+
+        if gameManager.stopGame == False:
+            sorted_players = sorted(gameManager.players, key=lambda player: player.score, reverse=True)
+            for index in range(len(sorted_players)):
+                sorted_players[index].draw_holder(screen)
+                sorted_players[index].draw_score(screen, index)
+            
+            if pickLetterManager.visible == False:
+                endTurn_button.draw(screen)
+                selectedIndexes = []
+                for index in range(len(gameManager.players[gameManager.turn].selectedLetters)):
+                    if gameManager.players[gameManager.turn].selectedLetters[index] == True:
+                        selectedIndexes.append(index)
+                if len(selectedIndexes) == 0:
+                    discard_button.text = "Pass"
+                else:
+                    discard_button.text = "Discard"
+                discard_button.draw(screen)
+            
+            pickLetterManager.draw(screen)
+
+            if chosenLetter != '':
+                mouse_x, mouse_y = pygame.mouse.get_pos()
+                rect = pygame.Rect(mouse_x, mouse_y, board.letter_size, board.letter_size)
+                Letter.draw_letter(screen, rect.move(-24, -16), chosenLetter, (20, 20, 20), False, False)
+        else:
+            sorted_players = sorted(gameManager.players, key=lambda player: player.score, reverse=True)
+            for index in range(len(sorted_players)):
+                sorted_players[index].draw_score_end_game(screen, index)
+
+            restart_button.draw(screen)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    gameManager.running = False
+                    sys.exit()
+                
+                if event.type == pygame.VIDEORESIZE:
+                    newWidth, newHeight = event.size
+                    gameManager.handleResize(newWidth, newHeight)
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouseX, mouseY = event.pos
+                    if restart_button.clicked(mouseX, mouseY):
+                        board = Board(BOARD_SIZE, 15, 15, WIDTH, HEIGHT)
+                        gameManager = Game(board, 2, json_file)
+                        gameManager.players[gameManager.turn].isTurnNow = True
+                        gameManager.stopGame = False
+                        infoBoardManager.texts = []
+
+        #cursor_img_rect.center = pygame.mouse.get_pos()
+        #screen.blit(cursor_image, cursor_img_rect.move(16, 16))
+
+        pygame.display.flip()
+
+    pygame.quit()
