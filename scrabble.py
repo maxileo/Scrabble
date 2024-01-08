@@ -807,7 +807,7 @@ if __name__ == "__main__":
 
     json_file = ""
     if len(sys.argv) < 2:
-        print('USAGE: python scrabble.py <json_words_file>\n    The json file should look like this:\n  ["DA", "MARE", ...]')
+        print('USAGE: python scrabble.py <json_words_file|words.json>\n    The json file should look like this:\n  ["DA", "MARE", ...]')
         sys.exit()
     else:
         json_file = sys.argv[1]
